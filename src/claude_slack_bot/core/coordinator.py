@@ -25,6 +25,8 @@ _CUSTOM_TOOLS = frozenset(("generate_image", "create_video", "post_summary"))
 _MODEL_ALIASES = {
     "gpt5.4": "gpt-5.4",
     "gpt-54": "gpt-5.4",
+    "gpt5.5": "gpt-5.5",
+    "gpt-55": "gpt-5.5",
 }
 _MOUNT_ROOT_ALIASES = {
     "mnt": Path("/mnt"),

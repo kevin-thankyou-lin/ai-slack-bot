@@ -39,7 +39,7 @@ When the user asks you to create a new tmux session running Codex:
 - If the machine has `/mnt/amlfs-*` mounts and `/mnt/amlfs-07/shared/linke` exists, send `export HOME=/mnt/amlfs-07/shared/linke` in that tmux terminal.
 - After exporting `HOME`, send `. ~/.bashrc` in that tmux terminal so the Codex CLI session picks up the correct shell environment.
 - Start interactive Codex by sending `codex` to the tmux terminal.
-- In Codex, set permissions to all enabled and use the best available model settings: currently `gpt-5.5`, `xhigh` reasoning, fast mode.
+- In Codex, set permissions to all enabled and use the best available model settings: currently `gpt-5.5`, `medium` reasoning, fast mode.
 
 ## Google Drive
 

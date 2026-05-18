@@ -37,9 +37,9 @@ class CodexCliBackend:
     def __init__(
         self,
         *,
-        model: str = "gpt-5.4",
+        model: str = "gpt-5.5",
         cwd: str | None = None,
-        effort: str | None = "high",
+        effort: str | None = "medium",
         codex_bin: str = "codex",
         bypass_approvals_and_sandbox: bool = True,
     ) -> None:
