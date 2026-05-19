@@ -1,4 +1,4 @@
-# claude-slack-bot
+# ai-slack-bot
 
 Threaded Claude or Codex agent conversations in Slack. One thread = one task.
 
