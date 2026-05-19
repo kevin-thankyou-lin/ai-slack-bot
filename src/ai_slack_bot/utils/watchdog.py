@@ -3,8 +3,8 @@ from __future__ import annotations
 import time
 
 # Shared watchdog state. Lives in its own module so it is the same object whether
-# imported as `claude_slack_bot.utils.watchdog` from package code or from the
-# `__main__` entrypoint (`python -m claude_slack_bot.main`).
+# imported as `ai_slack_bot.utils.watchdog` from package code or from the
+# `__main__` entrypoint (`python -m ai_slack_bot.main`).
 _last_event_time: float = time.monotonic()
 
 

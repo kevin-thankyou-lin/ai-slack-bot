@@ -18,14 +18,14 @@ Talk to the agent by @mentioning the bot in any channel. It responds in a thread
 ## Quick start
 
 ```bash
-git clone https://github.com/kevin-thankyou-lin/claude-slack-bot.git
-cd claude-slack-bot
+git clone https://github.com/kevin-thankyou-lin/ai-slack-bot.git
+cd ai-slack-bot
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env
 # Edit .env with your Slack tokens (see Slack App Setup below)
 # No API key needed — uses your Claude Code subscription by default
-python -m claude_slack_bot.main
+python -m ai_slack_bot.main
 ```
 
 > **No Anthropic API key?** The default `codex` backend uses your Codex CLI login. Just make sure `codex` is installed and logged in. Claude threads remain available through `backend claude` after `claude auth`.
@@ -120,7 +120,7 @@ Optional settings:
 | `CODEX_MODEL` | `gpt-5.4` | Codex model for `codex` threads |
 | `CODEX_BIN` | `codex` | Codex CLI executable |
 | `CODEX_BYPASS_APPROVALS_AND_SANDBOX` | `true` | Run Codex non-interactively without CLI approval prompts |
-| `DB_PATH` | `data/claude_slack_bot.db` | SQLite database path |
+| `DB_PATH` | `data/ai_slack_bot.db` | SQLite database path |
 | `SUMMARY_INTERVAL_TURNS` | `5` | Post a summary every N turns |
 | `CONFIRMATION_TIMEOUT_SECONDS` | `300` | Auto-expire unanswered permission prompts |
 | `LOG_LEVEL` | `INFO` | Logging level |
@@ -192,7 +192,7 @@ pyright src/
 pytest
 
 # Run
-python -m claude_slack_bot.main
+python -m ai_slack_bot.main
 ```
 
 ## Architecture

@@ -6,8 +6,8 @@ import sys
 
 import anthropic
 
-from claude_slack_bot.agent.prompts import SYSTEM_PROMPT
-from claude_slack_bot.agent.tools import CUSTOM_TOOLS
+from ai_slack_bot.agent.prompts import SYSTEM_PROMPT
+from ai_slack_bot.agent.tools import CUSTOM_TOOLS
 
 
 def main() -> None:
@@ -22,7 +22,7 @@ def main() -> None:
 
     try:
         agent = client.beta.agents.create(  # type: ignore[attr-defined]
-            name="claude-slack-bot",
+            name="ai-slack-bot",
             model="claude-sonnet-4-6",
             system=SYSTEM_PROMPT,
             tools=[

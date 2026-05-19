@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     effort: str = "high"  # Reasoning effort: low, medium, high, xhigh, max
 
     # Database
-    db_path: str = "data/claude_slack_bot.db"
+    db_path: str = "data/ai_slack_bot.db"
 
     # Media
     image_api_url: str = ""

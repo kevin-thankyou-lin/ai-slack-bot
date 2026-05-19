@@ -3,7 +3,7 @@ requires = ["flit_core >= 3.4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "claude-slack-bot"
+name = "ai-slack-bot"
 readme = "README.md"
 requires-python = ">=3.10"
 dynamic = ["version", "description"]
@@ -29,8 +29,8 @@ dev = [
 ]
 
 [tool.flit.module]
-name = "claude_slack_bot"
-path = "src/claude_slack_bot"
+name = "ai_slack_bot"
+path = "src/ai_slack_bot"
 
 [tool.ruff]
 line-length = 119
@@ -58,7 +58,7 @@ lint.ignore = [
 ]
 lint.extend-select = ["E501"]
 lint.exclude = ["*.ipynb"]
-lint.per-file-ignores = {"src/claude_slack_bot/main.py" = ["PLC0415"]}
+lint.per-file-ignores = {"src/ai_slack_bot/main.py" = ["PLC0415"]}
 
 [tool.ruff.format]
 docstring-code-format = true

@@ -6,8 +6,8 @@ import pytest
 from claude_code_sdk import ResultMessage
 from claude_code_sdk.types import StreamEvent
 
-from claude_slack_bot.agent.backend import EventType
-from claude_slack_bot.agent.claude_code import ClaudeCodeBackend
+from ai_slack_bot.agent.backend import EventType
+from ai_slack_bot.agent.claude_code import ClaudeCodeBackend
 
 
 def _make_stream_delta(text: str) -> MagicMock:

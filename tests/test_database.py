@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from claude_slack_bot.db import queries
-from claude_slack_bot.db.database import Database
-from claude_slack_bot.db.models import Thread
+from ai_slack_bot.db import queries
+from ai_slack_bot.db.database import Database
+from ai_slack_bot.db.models import Thread
 
 
 @pytest.mark.asyncio

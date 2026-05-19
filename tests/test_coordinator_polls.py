@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from claude_slack_bot.core.coordinator import (
+from ai_slack_bot.core.coordinator import (
     AUTO_POLL_INTERVAL_MIN,
     ONGOING_POLL_INTERVAL_MIN,
     ThreadCoordinator,

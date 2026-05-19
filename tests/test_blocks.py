@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from claude_slack_bot.slack.blocks import build_permission_block, build_summary_block
+from ai_slack_bot.slack.blocks import build_permission_block, build_summary_block
 
 
 def test_permission_block_structure() -> None:

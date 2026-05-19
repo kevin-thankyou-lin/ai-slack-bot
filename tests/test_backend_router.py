@@ -4,8 +4,8 @@ from typing import AsyncIterator
 
 import pytest
 
-from claude_slack_bot.agent.backend import EventType, SessionEvent
-from claude_slack_bot.agent.router import BackendRouter, normalize_backend_type
+from ai_slack_bot.agent.backend import EventType, SessionEvent
+from ai_slack_bot.agent.router import BackendRouter, normalize_backend_type
 
 
 class FakeBackend:

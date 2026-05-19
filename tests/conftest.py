@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 
-from claude_slack_bot.config import Settings
-from claude_slack_bot.db.database import Database
+from ai_slack_bot.config import Settings
+from ai_slack_bot.db.database import Database
 
 
 @pytest.fixture

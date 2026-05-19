@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from claude_slack_bot.agent.backend import EventType
-from claude_slack_bot.agent.messages import MessagesBackend
+from ai_slack_bot.agent.backend import EventType
+from ai_slack_bot.agent.messages import MessagesBackend
 
 
 def _make_text_response(text: str) -> MagicMock:

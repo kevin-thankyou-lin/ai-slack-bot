@@ -4,8 +4,8 @@ import asyncio
 
 import pytest
 
-from claude_slack_bot.agent.backend import EventType
-from claude_slack_bot.agent.codex_cli import CodexCliBackend
+from ai_slack_bot.agent.backend import EventType
+from ai_slack_bot.agent.codex_cli import CodexCliBackend
 
 
 @pytest.mark.asyncio
