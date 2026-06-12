@@ -25,6 +25,8 @@ async def get_thread(db: aiosqlite.Connection, thread_ts: str) -> Thread | None:
         cc_session_id=row["cc_session_id"] if "cc_session_id" in row.keys() else "",
         model=row["model"] if "model" in row.keys() else "",
         effort=row["effort"] if "effort" in row.keys() else "",
+        verbose=bool(row["verbose"]) if "verbose" in row.keys() else False,
+        text_delta_only=bool(row["text_delta_only"]) if "text_delta_only" in row.keys() else True,
         status=row["status"],
         user_id=row["user_id"] if "user_id" in row.keys() else "",
     )
@@ -32,8 +34,8 @@ async def get_thread(db: aiosqlite.Connection, thread_ts: str) -> Thread | None:
 
 async def upsert_thread(db: aiosqlite.Connection, thread: Thread) -> None:
     await db.execute(
-        """INSERT INTO threads (thread_ts, channel_id, session_id, backend_type, auto_approve, cwd, cc_session_id, model, effort, status, user_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO threads (thread_ts, channel_id, session_id, backend_type, auto_approve, cwd, cc_session_id, model, effort, verbose, text_delta_only, status, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(thread_ts) DO UPDATE SET
                session_id = excluded.session_id,
                backend_type = excluded.backend_type,
@@ -42,6 +44,8 @@ async def upsert_thread(db: aiosqlite.Connection, thread: Thread) -> None:
                cc_session_id = excluded.cc_session_id,
                model = excluded.model,
                effort = excluded.effort,
+               verbose = excluded.verbose,
+               text_delta_only = excluded.text_delta_only,
                status = excluded.status,
                user_id = excluded.user_id,
                updated_at = datetime('now')""",
@@ -55,6 +59,8 @@ async def upsert_thread(db: aiosqlite.Connection, thread: Thread) -> None:
             thread.cc_session_id,
             thread.model,
             thread.effort,
+            int(thread.verbose),
+            int(thread.text_delta_only),
             thread.status,
             thread.user_id,
         ),
@@ -73,6 +79,22 @@ async def set_cwd(db: aiosqlite.Connection, thread_ts: str, cwd: str) -> None:
 async def set_auto_approve(db: aiosqlite.Connection, thread_ts: str, *, enabled: bool) -> None:
     await db.execute(
         "UPDATE threads SET auto_approve = ?, updated_at = datetime('now') WHERE thread_ts = ?",
+        (int(enabled), thread_ts),
+    )
+    await db.commit()
+
+
+async def set_verbose(db: aiosqlite.Connection, thread_ts: str, *, enabled: bool) -> None:
+    await db.execute(
+        "UPDATE threads SET verbose = ?, text_delta_only = 0, updated_at = datetime('now') WHERE thread_ts = ?",
+        (int(enabled), thread_ts),
+    )
+    await db.commit()
+
+
+async def set_text_delta_only(db: aiosqlite.Connection, thread_ts: str, *, enabled: bool) -> None:
+    await db.execute(
+        "UPDATE threads SET verbose = 0, text_delta_only = ?, updated_at = datetime('now') WHERE thread_ts = ?",
         (int(enabled), thread_ts),
     )
     await db.commit()

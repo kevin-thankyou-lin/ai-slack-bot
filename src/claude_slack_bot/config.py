@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     agent_version: int = 1
     default_model: str = "claude-opus-4-7"  # Default Claude model
     codex_model: str = "gpt-5.5"  # Default Codex model
-    effort: str = "medium"  # Reasoning effort: low, medium, high, xhigh, max
+    effort: str = "xhigh"  # Reasoning effort: low, medium, high, xhigh, max
 
     # Database
     db_path: str = "data/claude_slack_bot.db"

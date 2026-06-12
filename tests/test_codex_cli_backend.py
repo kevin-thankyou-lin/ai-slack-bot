@@ -116,3 +116,9 @@ def test_build_args_uses_codex_options() -> None:
     assert args[args.index("-m") + 1] == "gpt-test"
     assert 'model_reasoning_effort="medium"' in args
     assert args[-1] == "prompt"
+
+
+def test_build_args_defaults_to_xhigh_effort() -> None:
+    backend = CodexCliBackend(model="gpt-test")
+    args = backend._build_args("s1", "prompt")
+    assert 'model_reasoning_effort="xhigh"' in args

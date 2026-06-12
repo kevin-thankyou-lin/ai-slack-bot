@@ -41,6 +41,52 @@ async def test_auto_approve(db: Database) -> None:
 
 
 @pytest.mark.asyncio
+async def test_verbose_mode(db: Database) -> None:
+    thread = Thread(
+        thread_ts="1234567890.000022",
+        channel_id="C123",
+        session_id="sess-quiet",
+    )
+    async with db._connect() as conn:
+        await queries.upsert_thread(conn, thread)
+        result = await queries.get_thread(conn, "1234567890.000022")
+        assert result is not None
+        assert result.verbose is False
+        assert result.text_delta_only is True
+
+        await queries.set_verbose(conn, "1234567890.000022", enabled=False)
+        result = await queries.get_thread(conn, "1234567890.000022")
+
+    assert result is not None
+    assert result.verbose is False
+    assert result.text_delta_only is False
+
+
+@pytest.mark.asyncio
+async def test_text_delta_only_mode(db: Database) -> None:
+    thread = Thread(
+        thread_ts="1234567890.000023",
+        channel_id="C123",
+        session_id="sess-delta",
+    )
+    async with db._connect() as conn:
+        await queries.upsert_thread(conn, thread)
+
+        await queries.set_text_delta_only(conn, "1234567890.000023", enabled=True)
+        result = await queries.get_thread(conn, "1234567890.000023")
+        assert result is not None
+        assert result.verbose is False
+        assert result.text_delta_only is True
+
+        await queries.set_verbose(conn, "1234567890.000023", enabled=True)
+        result = await queries.get_thread(conn, "1234567890.000023")
+
+    assert result is not None
+    assert result.verbose is True
+    assert result.text_delta_only is False
+
+
+@pytest.mark.asyncio
 async def test_messages(db: Database) -> None:
     thread = Thread(
         thread_ts="1234567890.000003",

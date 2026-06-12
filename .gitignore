@@ -8,6 +8,7 @@ build/
 *.egg
 
 .env
+PAT.md
 .venv/
 .venv.*/
 venv/

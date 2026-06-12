@@ -17,6 +17,8 @@ class Thread:
     cc_session_id: str = ""
     model: str = ""
     effort: str = ""
+    verbose: bool = False
+    text_delta_only: bool = True
     status: str = "active"
     user_id: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))

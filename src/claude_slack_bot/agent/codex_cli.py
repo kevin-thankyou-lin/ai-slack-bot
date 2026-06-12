@@ -39,7 +39,7 @@ class CodexCliBackend:
         *,
         model: str = "gpt-5.5",
         cwd: str | None = None,
-        effort: str | None = "medium",
+        effort: str | None = "xhigh",
         codex_bin: str = "codex",
         bypass_approvals_and_sandbox: bool = True,
     ) -> None:

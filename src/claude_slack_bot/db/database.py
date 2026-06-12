@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS threads (
     cc_session_id   TEXT NOT NULL DEFAULT '',
     model           TEXT NOT NULL DEFAULT '',
     effort          TEXT NOT NULL DEFAULT '',
+    verbose         INTEGER NOT NULL DEFAULT 0,
+    text_delta_only INTEGER NOT NULL DEFAULT 1,
     status          TEXT NOT NULL DEFAULT 'active',
     user_id         TEXT NOT NULL DEFAULT '',
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
@@ -67,9 +69,16 @@ class Database:
         async with aiosqlite.connect(self.db_path) as db:
             await db.executescript(SCHEMA)
             # Migrations for existing databases
-            for col, default in [("user_id", "''"), ("cc_session_id", "''"), ("model", "''"), ("effort", "''")]:
+            for col, col_type, default in [
+                ("user_id", "TEXT", "''"),
+                ("cc_session_id", "TEXT", "''"),
+                ("model", "TEXT", "''"),
+                ("effort", "TEXT", "''"),
+                ("verbose", "INTEGER", "0"),
+                ("text_delta_only", "INTEGER", "1"),
+            ]:
                 try:
-                    await db.execute(f"ALTER TABLE threads ADD COLUMN {col} TEXT NOT NULL DEFAULT {default}")
+                    await db.execute(f"ALTER TABLE threads ADD COLUMN {col} {col_type} NOT NULL DEFAULT {default}")
                     await db.commit()
                 except Exception:
                     pass  # Column already exists

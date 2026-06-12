@@ -5,8 +5,9 @@ import json
 import re
 import shlex
 import time
+from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 import structlog
 
@@ -20,6 +21,8 @@ from ..slack.blocks import build_permission_block, build_summary_block
 from ..slack.file_upload import scan_and_upload_files
 
 logger = structlog.get_logger()
+
+_StreamItem = TypeVar("_StreamItem")
 
 _CUSTOM_TOOLS = frozenset(("generate_image", "create_video", "post_summary"))
 _MODEL_ALIASES = {
@@ -38,6 +41,8 @@ AUTO_COMPACT_THRESHOLD = 150  # auto-compact after this many messages in a threa
 STREAM_FLUSH_INTERVAL = 5.0  # fallback: max seconds between Slack message updates
 STREAM_DEBOUNCE_DELAY = 0.4  # flush this long after the last token (primary trigger)
 STREAM_FIRST_POST_DELAY = 0.5  # wait this long before first post (avoids flicker for fast replies)
+STREAM_IDLE_TIMEOUT = 12 * 60 * 60  # fail streams that stop yielding for 12 hours
+TEXT_DELTA_FINAL_MARKER = ":white_check_mark:"
 
 # Sentinel Claude can include in its final response to self-schedule a poll.
 # Format: POLL_START: <interval> <prompt>  e.g. POLL_START: 10m check conversion log
@@ -179,12 +184,24 @@ class _StreamBuffer:
     delay, posts just once with no indicator.
     """
 
-    def __init__(self, thread_ts: str, say: Any, client: Any, user_id: str = "") -> None:
+    def __init__(
+        self,
+        thread_ts: str,
+        say: Any,
+        client: Any,
+        user_id: str = "",
+        *,
+        stream_updates: bool = True,
+        emit_deltas: bool = False,
+    ) -> None:
         self.thread_ts = thread_ts
         self._say = say
         self._client = client
         self._user_id = user_id
+        self._stream_updates = stream_updates
+        self._emit_deltas = emit_deltas
         self._text = ""
+        self._pending_delta_text = ""
         self._slack_msg_ts: str | None = None
         self._channel_id: str | None = None
         self._dirty = False
@@ -200,8 +217,44 @@ class _StreamBuffer:
         await self.flush()
 
     async def append(self, delta: str) -> None:
-        self._text += delta
+        if not delta:
+            return
+        if self._emit_deltas and self._text and delta.startswith(self._text):
+            next_text = delta
+            delta = delta[len(self._text) :]
+            self._text = next_text
+        else:
+            self._text += delta
+        if self._emit_deltas:
+            if not delta:
+                return
+            self._pending_delta_text += delta
+        await self._mark_dirty()
+
+    async def append_text_block(self, text: str) -> None:
+        if not text:
+            return
+        if self._text and text.startswith(self._text):
+            delta = text[len(self._text) :]
+            self._text = text
+        elif self._text and self._text.endswith(text):
+            return
+        elif self._text:
+            delta = f"\n\n{text}"
+            self._text = f"{self._text}{delta}"
+        else:
+            delta = text
+            self._text = text
+        if self._emit_deltas:
+            if not delta:
+                return
+            self._pending_delta_text += delta
+        await self._mark_dirty()
+
+    async def _mark_dirty(self) -> None:
         self._dirty = True
+        if not self._stream_updates:
+            return
         if self._first_delta_time is None:
             self._first_delta_time = time.monotonic()
         # Cancel any pending debounce and restart it — flush fires after the stream pauses
@@ -209,17 +262,24 @@ class _StreamBuffer:
             self._debounce_task.cancel()
         self._debounce_task = asyncio.create_task(self._debounced_flush())
 
-    async def flush(self) -> None:
-        if not self._dirty or not self._text:
+    async def flush(self, *, force: bool = False) -> None:
+        if not self._stream_updates:
+            return
+        text_to_post = self._pending_delta_text if self._emit_deltas else self._text
+        if not self._dirty or not text_to_post:
             return
 
         # Don't post yet if we're still within the first-post delay
-        if self._slack_msg_ts is None and self._first_delta_time is not None:
+        if not force and self._slack_msg_ts is None and self._first_delta_time is not None:
             elapsed = time.monotonic() - self._first_delta_time
             if elapsed < STREAM_FIRST_POST_DELAY:
                 return
 
         self._dirty = False
+        if self._emit_deltas:
+            self._pending_delta_text = ""
+            await self._say(text=text_to_post, thread_ts=self.thread_ts)
+            return
 
         if self._slack_msg_ts is None:
             # Replace the "Thinking..." message if we have one
@@ -255,6 +315,14 @@ class _StreamBuffer:
         """Post final text — no typing indicator. Mentions user to signal task complete."""
         if self._debounce_task and not self._debounce_task.done():
             self._debounce_task.cancel()
+        if self._emit_deltas:
+            if self._text:
+                marker = f"\n\n{TEXT_DELTA_FINAL_MARKER}"
+                self._pending_delta_text += marker
+                self._dirty = True
+            await self.flush(force=True)
+            self._dirty = False
+            return self._text
         self._dirty = False
         mention = f"<@{self._user_id}> " if self._user_id else ""
         final_text = mention + self._text if mention and self._text else self._text
@@ -276,6 +344,25 @@ class _StreamBuffer:
     @property
     def has_content(self) -> bool:
         return bool(self._text)
+
+
+class StreamIdleTimeout(TimeoutError):
+    """Raised when an agent stream stops yielding events for too long."""
+
+
+async def _iter_stream_with_timeout(
+    stream: AsyncIterator[_StreamItem], timeout_seconds: float, thread_ts: str
+) -> AsyncIterator[_StreamItem]:
+    """Yield stream items, applying the timeout to each awaited event."""
+    iterator = stream.__aiter__()
+    while True:
+        try:
+            item = await asyncio.wait_for(iterator.__anext__(), timeout=timeout_seconds)
+        except StopAsyncIteration:
+            return
+        except TimeoutError as exc:
+            raise StreamIdleTimeout(f"Agent stream idle for {timeout_seconds:g}s in thread {thread_ts}") from exc
+        yield item
 
 
 class ThreadCoordinator:
@@ -389,6 +476,27 @@ class ThreadCoordinator:
                 await self._run_remaining_after_command(thread_ts, channel_id, remaining, say, client, user_id)
             return
 
+        # Handle verbosity command: "verbose", "text-delta", "non-verbose", optionally followed by a prompt.
+        verbosity_match = re.match(
+            r"^(?:(?:verbosity|mode)\s+)?(verbose|text[-_\s]?delta(?:[-_\s]?only)?|delta|non[-\s]?verbose|quiet|silent)\s*(.*)?$",
+            text.strip(),
+            re.IGNORECASE | re.DOTALL,
+        )
+        if verbosity_match:
+            mode = self._normalize_response_mode(verbosity_match.group(1))
+            remaining = (verbosity_match.group(2) or "").strip()
+            await self._handle_response_mode(
+                thread_ts,
+                channel_id,
+                mode=mode,
+                say=say,
+                user_id=user_id,
+                announce=not remaining,
+            )
+            if remaining:
+                await self._run_remaining_after_command(thread_ts, channel_id, remaining, say, client, user_id)
+            return
+
         # Handle poll command: "poll 10m check status" or "poll stop"
         poll_match = re.match(r"^poll\s+(.+)$", text.strip(), re.IGNORECASE | re.DOTALL)
         if poll_match:
@@ -432,7 +540,8 @@ class ThreadCoordinator:
                 self._queues[thread_ts] = asyncio.Queue()
             await self._queues[thread_ts].put((thread_ts, channel_id, text, say, client, user_id))
             logger.info("coordinator.queued", thread_ts=thread_ts, text=text[:50])
-            await say(text=":inbox_tray: Queued — will process after current task finishes.", thread_ts=thread_ts)
+            if await self._thread_verbose(thread_ts):
+                await say(text=":inbox_tray: Queued — will process after current task finishes.", thread_ts=thread_ts)
             return
 
         task = asyncio.create_task(self._process_and_drain(thread_ts, channel_id, text, say, client, user_id))
@@ -698,6 +807,80 @@ class ThreadCoordinator:
         await say(text=f":zap: Effort set to `{effort_val}`", thread_ts=thread_ts)
         logger.info("coordinator.effort_set", thread_ts=thread_ts, effort=effort_val)
 
+    def _normalize_response_mode(self, mode: str) -> str:
+        key = mode.strip().lower().replace("_", "-").replace(" ", "-")
+        if key in ("quiet", "silent"):
+            return "non-verbose"
+        if key in ("delta", "text-delta", "text-delta-only"):
+            return "text-delta"
+        return key
+
+    def _response_mode(self, thread: Thread | None) -> str:
+        if thread is None:
+            return "text-delta"
+        if thread.verbose:
+            return "verbose"
+        if thread.text_delta_only:
+            return "text-delta"
+        return "non-verbose"
+
+    def _stream_text_updates(self, thread: Thread | None) -> bool:
+        return self._response_mode(thread) in ("verbose", "text-delta")
+
+    async def _handle_response_mode(
+        self,
+        thread_ts: str,
+        channel_id: str,
+        *,
+        mode: str,
+        say: Any,
+        user_id: str = "",
+        announce: bool = True,
+    ) -> None:
+        verbose = mode == "verbose"
+        text_delta_only = mode == "text-delta"
+        async with self.db._connect() as db:
+            thread = await queries.get_thread(db, thread_ts)
+            if thread is None:
+                backend_type = self._default_backend_type()
+                session_id = await self._create_session(backend_type)
+                thread = Thread(
+                    thread_ts=thread_ts,
+                    channel_id=channel_id,
+                    session_id=session_id,
+                    backend_type=backend_type,
+                    verbose=verbose,
+                    text_delta_only=text_delta_only,
+                    user_id=user_id,
+                )
+                await queries.upsert_thread(db, thread)
+            else:
+                thread.verbose = verbose
+                thread.text_delta_only = text_delta_only
+                if user_id and not thread.user_id:
+                    thread.user_id = user_id
+                await queries.upsert_thread(db, thread)
+
+        detail = {
+            "verbose": "streaming text and activity updates enabled",
+            "text-delta": "streaming assistant text only",
+            "non-verbose": "only final agent messages will be posted",
+        }[mode]
+        if announce:
+            await say(text=f":speech_balloon: Mode set to `{mode}` ({detail}).", thread_ts=thread_ts)
+        logger.info(
+            "coordinator.response_mode_set",
+            thread_ts=thread_ts,
+            mode=mode,
+            verbose=verbose,
+            text_delta_only=text_delta_only,
+        )
+
+    async def _thread_verbose(self, thread_ts: str) -> bool:
+        async with self.db._connect() as db:
+            thread = await queries.get_thread(db, thread_ts)
+        return thread.verbose if thread else False
+
     async def _handle_cd(self, thread_ts: str, channel_id: str, path: str, say: Any, user_id: str = "") -> None:
         """Set the working directory for a thread."""
         resolved = self._resolve_cwd(path)
@@ -845,6 +1028,9 @@ class ThreadCoordinator:
             parts.append(f"model=`{thread.model}`")
         if thread and thread.effort:
             parts.append(f"effort=`{thread.effort}`")
+        mode = self._response_mode(thread)
+        if mode != "verbose":
+            parts.append(f"mode=`{mode}`")
         return f" Kept: {', '.join(parts)}." if parts else ""
 
     async def _handle_reset(self, thread_ts: str, say: Any) -> None:
@@ -854,9 +1040,19 @@ class ThreadCoordinator:
         await say(text=f":wastebasket: Reset — fresh session, no prior context.{kept}", thread_ts=thread_ts)
         logger.info("coordinator.reset", thread_ts=thread_ts)
 
-    async def _handle_compact(self, thread_ts: str, channel_id: str, say: Any, client: Any, user_id: str) -> None:
+    async def _handle_compact(
+        self,
+        thread_ts: str,
+        channel_id: str,
+        say: Any,
+        client: Any,
+        user_id: str,
+        *,
+        announce: bool = True,
+    ) -> None:
         """Summarize conversation, then start fresh session with summary injected."""
-        await say(text=":broom: Compacting — summarizing conversation...", thread_ts=thread_ts)
+        if announce:
+            await say(text=":broom: Compacting — summarizing conversation...", thread_ts=thread_ts)
 
         # Get conversation history
         async with self.db._connect() as db:
@@ -966,10 +1162,11 @@ class ThreadCoordinator:
             )
 
         unit_label = f"{amount}{'m' if unit in ('m', 'min') else unit[0]}"
-        await say(
-            text=f":repeat: Poll started — will run `{prompt}` every {unit_label}. Type `poll stop` to cancel.",
-            thread_ts=thread_ts,
-        )
+        if await self._thread_verbose(thread_ts):
+            await say(
+                text=f":repeat: Poll started — will run `{prompt}` every {unit_label}. Type `poll stop` to cancel.",
+                thread_ts=thread_ts,
+            )
         logger.info("coordinator.poll_started", thread_ts=thread_ts, interval=interval_secs, prompt=prompt)
 
     async def _run_poll(
@@ -1003,16 +1200,16 @@ class ThreadCoordinator:
                 active = self._active.get(thread_ts)
                 if active and not active.done():
                     logger.info("coordinator.poll_skipped_busy", thread_ts=thread_ts)
-                    buf = self._stream_buffers.get(thread_ts)
-                    tool_count = getattr(buf, "_tool_count", 0) if buf else 0
-                    status = (
-                        f":hourglass: Agent still working ({tool_count} steps so far) — poll deferred to next tick."
-                    )
-                    await say(text=status, thread_ts=thread_ts)
+                    if await self._thread_verbose(thread_ts):
+                        buf = self._stream_buffers.get(thread_ts)
+                        tool_count = getattr(buf, "_tool_count", 0) if buf else 0
+                        status = f":hourglass: Agent still working ({tool_count} steps so far) — poll deferred to next tick."
+                        await say(text=status, thread_ts=thread_ts)
                     continue
 
                 logger.info("coordinator.poll_tick", thread_ts=thread_ts, prompt=prompt)
-                await say(text=":arrows_counterclockwise: Poll check...", thread_ts=thread_ts)
+                if await self._thread_verbose(thread_ts):
+                    await say(text=":arrows_counterclockwise: Poll check...", thread_ts=thread_ts)
                 # Use _process_and_drain so any user messages queued during the
                 # poll tick are drained immediately instead of getting stuck.
                 task = asyncio.create_task(
@@ -1038,7 +1235,10 @@ class ThreadCoordinator:
                         self._polls.pop(thread_ts, None)
                         async with self.db._connect() as db2:
                             await queries.delete_poll(db2, thread_ts)
-                        await say(text=":white_check_mark: Poll auto-stopped (task complete).", thread_ts=thread_ts)
+                        if await self._thread_verbose(thread_ts):
+                            await say(
+                                text=":white_check_mark: Poll auto-stopped (task complete).", thread_ts=thread_ts
+                            )
                         return
 
         except asyncio.CancelledError:
@@ -1066,13 +1266,24 @@ class ThreadCoordinator:
             if thread and thread.cwd and hasattr(self.backend, "set_session_cwd"):
                 await self.backend.set_session_cwd(btw_session, thread.cwd)
 
-            # Post thinking indicator
-            thinking_result = await say(text=":speech_balloon: btw — thinking...", thread_ts=thread_ts)
-            thinking_ts = thinking_result.get("ts") if isinstance(thinking_result, dict) else None
-            thinking_channel = thinking_result.get("channel") if isinstance(thinking_result, dict) else None
-
             buf_key = f"btw:{thread_ts}:{btw_session}"
-            buf = _StreamBuffer(thread_ts, say, client, user_id=user_id)
+            response_mode = self._response_mode(thread)
+            if thread and thread.verbose:
+                thinking_result = await say(text=":speech_balloon: btw — thinking...", thread_ts=thread_ts)
+                thinking_ts = thinking_result.get("ts") if isinstance(thinking_result, dict) else None
+                thinking_channel = thinking_result.get("channel") if isinstance(thinking_result, dict) else None
+            else:
+                thinking_ts = None
+                thinking_channel = None
+
+            buf = _StreamBuffer(
+                thread_ts,
+                say,
+                client,
+                user_id=user_id,
+                stream_updates=response_mode in ("verbose", "text-delta"),
+                emit_deltas=response_mode == "text-delta",
+            )
             buf._thinking_ts = thinking_ts
             buf._thinking_channel = thinking_channel
             self._stream_buffers[buf_key] = buf
@@ -1084,7 +1295,11 @@ class ThreadCoordinator:
 
             flush_task = asyncio.create_task(_periodic_flush())
             try:
-                async for event in self.backend.send_message(btw_session, text):
+                async for event in _iter_stream_with_timeout(
+                    self.backend.send_message(btw_session, text),
+                    STREAM_IDLE_TIMEOUT,
+                    thread_ts,
+                ):
                     await self._handle_event(event, buf_key, btw_session, user_id, say, client)
             finally:
                 flush_task.cancel()
@@ -1122,10 +1337,29 @@ class ThreadCoordinator:
             await queries.resolve_confirmation(db, tool_use_id, "allowed" if allowed else "denied")
 
         user_id = thread.user_id
+        channel_id = thread.channel_id
 
+        previous_buf = self._stream_buffers.get(thread_ts)
+        response_mode = self._response_mode(thread)
+        buf = _StreamBuffer(
+            thread_ts,
+            say,
+            client,
+            user_id=user_id,
+            stream_updates=response_mode in ("verbose", "text-delta"),
+            emit_deltas=response_mode == "text-delta",
+        )
+        self._stream_buffers[thread_ts] = buf
         if not allowed:
-            async for event in self.backend.send_tool_confirmation(thread.session_id, tool_use_id, allowed=False):
-                await self._handle_event(event, thread_ts, thread.session_id, user_id, say, client)
+            try:
+                async for event in self.backend.send_tool_confirmation(thread.session_id, tool_use_id, allowed=False):
+                    await self._handle_event(event, thread_ts, thread.session_id, user_id, say, client)
+            finally:
+                await self._finalize_followup_buffer(thread_ts, channel_id, buf, client)
+                if previous_buf is not None:
+                    self._stream_buffers[thread_ts] = previous_buf
+                else:
+                    self._stream_buffers.pop(thread_ts, None)
             return
 
         tool_input = (
@@ -1134,8 +1368,25 @@ class ThreadCoordinator:
             else confirmation.tool_input
         )
         result = await self._execute_tool(confirmation.tool_name, tool_input)
-        async for event in self.backend.send_tool_result(thread.session_id, tool_use_id, result):
-            await self._handle_event(event, thread_ts, thread.session_id, user_id, say, client)
+        try:
+            async for event in self.backend.send_tool_result(thread.session_id, tool_use_id, result):
+                await self._handle_event(event, thread_ts, thread.session_id, user_id, say, client)
+        finally:
+            await self._finalize_followup_buffer(thread_ts, channel_id, buf, client)
+            if previous_buf is not None:
+                self._stream_buffers[thread_ts] = previous_buf
+            else:
+                self._stream_buffers.pop(thread_ts, None)
+
+    async def _finalize_followup_buffer(
+        self, thread_ts: str, channel_id: str, buf: _StreamBuffer, client: Any
+    ) -> None:
+        if not buf.has_content:
+            return
+        final_text = await buf.finalize()
+        async with self.db._connect() as db_conn:
+            await queries.add_message(db_conn, thread_ts, "assistant", final_text)
+        await scan_and_upload_files(client, channel_id, thread_ts, "", final_text)
 
     async def _sync_backend_state(self, thread: Thread) -> None:
         """Push per-thread settings (auto-approve, cwd, resume ID) into the backend."""
@@ -1307,13 +1558,24 @@ class ThreadCoordinator:
 
             message = text
 
-            # Post a "thinking" indicator immediately so user sees activity
-            thinking_result = await say(text=":brain: Thinking...", thread_ts=thread_ts)
-            thinking_ts = thinking_result.get("ts") if isinstance(thinking_result, dict) else None
-            thinking_channel = thinking_result.get("channel") if isinstance(thinking_result, dict) else None
+            if thread.verbose:
+                thinking_result = await say(text=":brain: Thinking...", thread_ts=thread_ts)
+                thinking_ts = thinking_result.get("ts") if isinstance(thinking_result, dict) else None
+                thinking_channel = thinking_result.get("channel") if isinstance(thinking_result, dict) else None
+            else:
+                thinking_ts = None
+                thinking_channel = None
 
             # Create a stream buffer for live updates
-            buf = _StreamBuffer(thread_ts, say, client, user_id=effective_user_id)
+            response_mode = self._response_mode(thread)
+            buf = _StreamBuffer(
+                thread_ts,
+                say,
+                client,
+                user_id=effective_user_id,
+                stream_updates=response_mode in ("verbose", "text-delta"),
+                emit_deltas=response_mode == "text-delta",
+            )
             buf._thinking_ts = thinking_ts  # track so we can delete it later
             buf._thinking_channel = thinking_channel
             self._stream_buffers[thread_ts] = buf
@@ -1326,7 +1588,11 @@ class ThreadCoordinator:
             flush_task = asyncio.create_task(_periodic_flush())
             poll_request: tuple[int, str, str] | None = None
             try:
-                async for event in self.backend.send_message(thread.session_id, message):
+                async for event in _iter_stream_with_timeout(
+                    self.backend.send_message(thread.session_id, message),
+                    STREAM_IDLE_TIMEOUT,
+                    thread_ts,
+                ):
                     await self._handle_event(event, thread_ts, thread.session_id, effective_user_id, say, client)
             finally:
                 flush_task.cancel()
@@ -1361,8 +1627,16 @@ class ThreadCoordinator:
                 msg_count = await queries.get_message_count(db_conn, thread_ts)
             if msg_count >= AUTO_COMPACT_THRESHOLD:
                 logger.info("coordinator.auto_compact", thread_ts=thread_ts, msg_count=msg_count)
-                await say(text=":broom: Auto-compacting (50+ messages)...", thread_ts=thread_ts)
-                await self._handle_compact(thread_ts, channel_id, say, client, effective_user_id)
+                if thread.verbose:
+                    await say(text=":broom: Auto-compacting (50+ messages)...", thread_ts=thread_ts)
+                await self._handle_compact(
+                    thread_ts,
+                    channel_id,
+                    say,
+                    client,
+                    effective_user_id,
+                    announce=thread.verbose,
+                )
             # Auto-continue: if Claude's response signals it wants to keep going,
             # send "continue" to kick off the next turn automatically
             elif buf.has_content and self._should_auto_continue(buf._text):
@@ -1427,7 +1701,7 @@ class ThreadCoordinator:
                 # Route through buf so finalize() handles posting + POLL_START detection.
                 # Covers non-streaming backends (messages API) that emit full TEXT events
                 # instead of TEXT_DELTA, and tool-result follow-up text within a turn.
-                await buf.append(event.text)
+                await buf.append_text_block(event.text)
             else:
                 # No active stream buffer (e.g., button-click approval handler) — post directly.
                 await self._handle_text(event, thread_ts, user_id, say)
@@ -1500,6 +1774,8 @@ class ThreadCoordinator:
         if event.tool_name == "post_summary":
             summary = str(event.tool_input.get("summary", ""))
             status = str(event.tool_input.get("status", "completed"))
+            if not await self._thread_verbose(thread_ts):
+                return f"Summary captured for final response: {summary}"
             blocks = build_summary_block(summary, status)
             await say(text=summary, blocks=blocks, thread_ts=thread_ts)
             return f"Summary posted: {summary}"

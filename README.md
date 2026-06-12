@@ -118,7 +118,7 @@ Optional settings:
 | `DEFAULT_BACKEND` | `codex` | `codex`, `claude-code`, `messages` (API), or `managed` (beta) |
 | `DEFAULT_MODEL` | `claude-opus-4-7` | Claude model for `claude-code` / Messages |
 | `CODEX_MODEL` | `gpt-5.5` | Codex model for `codex` threads |
-| `EFFORT` | `medium` | Reasoning effort: `low`, `medium`, `high`, `xhigh`, or `max` |
+| `EFFORT` | `xhigh` | Reasoning effort: `low`, `medium`, `high`, `xhigh`, or `max` |
 | `CODEX_BIN` | `codex` | Codex CLI executable |
 | `CODEX_BYPASS_APPROVALS_AND_SANDBOX` | `true` | Run Codex non-interactively without CLI approval prompts |
 | `DB_PATH` | `data/claude_slack_bot.db` | SQLite database path |
@@ -195,6 +195,10 @@ pytest
 # Run
 python -m claude_slack_bot.main
 ```
+
+Operational docs:
+
+- [Launching remote experiments](docs/remote-experiments.md)
 
 ## Architecture
 
