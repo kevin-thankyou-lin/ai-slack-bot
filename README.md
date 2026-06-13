@@ -40,7 +40,7 @@ python -m claude_slack_bot.main
 3. Select your workspace
 4. Paste the contents of `manifest.json` from this repo
 5. Click **Create** — all scopes, events, and settings are pre-configured
-6. Skip to step 6 (Install the App)
+6. Continue with step 2 to generate `SLACK_APP_TOKEN`, then skip directly to step 6 (Install the App) to get `SLACK_BOT_TOKEN`
 
 **Option B — Manual setup:**
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**
@@ -166,16 +166,6 @@ Ask Claude to create visuals:
 ```
 
 Claude writes and executes a matplotlib script, then uploads the image to the thread.
-
-### Managed Agents (optional)
-
-For stateful sessions with built-in tools (bash, text editor, web search, computer use):
-
-```bash
-python -m scripts.create_agent
-# Copy the output AGENT_ID and AGENT_VERSION to your .env
-# Set DEFAULT_BACKEND=managed
-```
 
 ## Development
 
