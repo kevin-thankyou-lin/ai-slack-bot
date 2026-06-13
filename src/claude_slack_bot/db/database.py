@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS threads (
     channel_id      TEXT NOT NULL,
     session_id      TEXT NOT NULL,
     backend_type    TEXT NOT NULL DEFAULT 'messages',
+    surface         TEXT NOT NULL DEFAULT 'slack_thread',
     auto_approve    INTEGER NOT NULL DEFAULT 0,
     cwd             TEXT NOT NULL DEFAULT '',
     cc_session_id   TEXT NOT NULL DEFAULT '',
@@ -76,6 +77,7 @@ class Database:
                 ("effort", "TEXT", "''"),
                 ("verbose", "INTEGER", "0"),
                 ("text_delta_only", "INTEGER", "1"),
+                ("surface", "TEXT", "'slack_thread'"),
             ]:
                 try:
                     await db.execute(f"ALTER TABLE threads ADD COLUMN {col} {col_type} NOT NULL DEFAULT {default}")

@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     max_turns_per_thread: int = 200
     summary_interval_turns: int = 5
     confirmation_timeout_seconds: int = 300
+    enable_slack_assistant: bool = True
 
     # Logging
     log_level: str = "INFO"
