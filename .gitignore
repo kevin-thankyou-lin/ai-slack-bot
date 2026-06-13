@@ -17,6 +17,7 @@ env/
 data/*.db
 data/*.sqlite
 logs/
+docs/
 
 .mypy_cache/
 .pyright/
