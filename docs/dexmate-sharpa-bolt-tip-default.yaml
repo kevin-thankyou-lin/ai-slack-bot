@@ -64,6 +64,26 @@ targets:
       - -0.391
       - 0.8184078039403521
 
+default_base_pose:
+  semantics: true_robot_front_heading
+  source: >
+    The center and height come from the visual/FK bolt-tip fit. The fitted
+    heading was side-facing: the render labels previously called front_table
+    and front_straight are actually side views. The true robot front is +90 deg
+    from that fitted side/camera heading about the same center.
+  xyz_yaw:
+    units:
+      xyz: m
+      yaw: deg
+    value:
+      - -0.021610191922259214
+      - -0.6053674260567798
+      - -0.0414379358328964
+      - 87.99548862484318
+  fitted_side_heading_yaw_deg: -2.0045113751568344
+  front_heading_correction_from_side_deg: 90.0
+  opposite_side_front_yaw_deg: -92.00451137515684
+
 optimization:
   mode: visual_fk_state_render_xyz_base_height_fit_to_bolt_tip
   right_index_tip_geom: right_index_elastomer_0
@@ -113,6 +133,11 @@ artifacts:
   stage: /tmp/dexmate_sharpa_birdview_bolts_red_arrow_tip_xyz_opt/dexmate_sharpa_red_arrow_up_right_bolt_tip_xyz_opt_stage.usda
   plot: /tmp/dexmate_red_arrow_reference_bolt_tip_xyz_optimization_result.png
   contact_sheet: /tmp/dexmate_red_arrow_bolt_tip_xyz_optimized_isaac_render/dexmate_red_arrow_bolt_tip_xyz_opt_isaac_contact_sheet.png
+  render_view_label_correction:
+    front_table: side_table
+    front_straight: side_straight
+    view_center_correct: true
+    true_front_view: rotate_previous_front_view_90_deg_about_same_center
 
 caveat: >
   The z component is a visual/FK base-height fit to the bolt tip. Check ground
