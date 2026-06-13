@@ -845,7 +845,7 @@ class ThreadCoordinator:
         self, thread_ts: str, channel_id: str, effort_val: str, say: Any, user_id: str = ""
     ) -> None:
         """Set the effort level for a thread."""
-        valid = ("low", "medium", "high", "xhigh", "max")
+        valid = ("low", "medium", "high", "xhigh")
         if effort_val not in valid:
             await say(text=f":x: Invalid effort. Use one of: {', '.join(valid)}", thread_ts=thread_ts)
             return
