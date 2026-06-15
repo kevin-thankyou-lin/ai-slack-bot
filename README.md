@@ -32,9 +32,10 @@ python -m claude_slack_bot.main
 
 ## Slack App Setup
 
-### 1. Create a Slack App
+### 1. Option A: Create a Slack App from the Manifest
 
-**Option A — Import manifest (recommended):**
+Use this recommended path unless you specifically need to configure the Slack app by hand. The manifest pre-configures the app settings that are otherwise covered in the manual sections below.
+
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**
 2. Choose **From an app manifest**
 3. Select your workspace
@@ -42,11 +43,15 @@ python -m claude_slack_bot.main
 5. Click **Create** — all scopes, events, and settings are pre-configured
 6. Continue with step 2 to generate `SLACK_APP_TOKEN`, then skip directly to step 6 (Install the App) to get `SLACK_BOT_TOKEN`
 
-**Option B — Manual setup:**
+### Option B: Manual App Setup
+
+Use this fallback only if you cannot import the manifest or want to review every Slack setting yourself.
+
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**
 2. Choose **From scratch**
 3. Name it (e.g., "Claude Bot") and select your workspace
 4. Click **Create App**
+5. Continue through steps 2-5 below to configure Socket Mode, scopes, events, and interactivity manually before installing the app in step 6
 
 ### 2. Enable Socket Mode
 
