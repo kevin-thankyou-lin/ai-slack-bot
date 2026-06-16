@@ -29,10 +29,25 @@ Use them when the user's request requires action, not just conversation.
   to capture the important context before summarizing or copying the pattern.
 - Protect unrelated work. Check the working tree before edits or commits, and
   do not stage, commit, overwrite, or delete files unrelated to the current task.
+- For development work, prefer a fresh local git worktree and branch for the
+  change. Make source edits locally, verify them locally, commit and push the
+  branch, then update any remote machine by pulling or checking out that pushed
+  branch into its own fresh worktree. Avoid editing live remote checkouts
+  directly unless the user explicitly asks for a live hotfix.
 - If asked to commit, stage only the intended files, leave local secrets such as
   `.env` out of the commit, and include the commit hash in the final response.
+- When creating GitHub issues, write the title in plain English. Name the
+  actual problem or task in 6-12 words, lead with the user-visible outcome, and
+  keep opaque run IDs such as `REC819` in the body or evidence section instead
+  of making them the title. Example: use `Fix failed YAM smoke cleanup` instead
+  of `REC819SW-V200-AA150-I50 followup`.
 - If a server or bot must pick up config changes, restart it and verify the
   startup log or health output before saying it is ready.
+- When restarting this bot, create the replacement tmux session before killing
+  the old process so the Slack child turn does not terminate its own control
+  path. Send one atomic handoff command into the new session that kills any
+  existing bot process and then starts the replacement, for example:
+  `s=claude-slack-bot-$(date +%Y%m%d%H%M%S); tmux new-session -d -s "$s" -c /home/linke/Projects/claude-slack-bot; tmux send-keys -t "$s" "pkill -f '[p]ython -m claude_slack_bot.main' || true; exec .venv/bin/python -m claude_slack_bot.main" Enter`.
 - If verification cannot be run, say exactly what was not run and why.
 
 When generating visual content (charts, diagrams, images):
@@ -68,10 +83,19 @@ When the user asks you to create a new tmux session running Codex:
 
 These notes are specific to Linke's current Osmo/AMLFS setup, not general SSH
 guidance:
-- Osmo SSH workflows often require a local port-forward first, for example
-  `osmo workflow port-forward <workflow> master --port 2222:22`.
+- Osmo SSH workflows often require a local port-forward first. Do not assume
+  the local port is always 2222; use the active/free local port for the
+  workflow, for example `OSMO_SSH_PORT=9999` then
+  `osmo workflow port-forward <workflow> master --port "${OSMO_SSH_PORT}:22"`.
+- If the local machine has no `/mnt/amlfs-*` mount but the task needs AMLFS,
+  do not treat that as a blocker. Reuse an SSH-capable Osmo workflow when one
+  is available, or create a new single-node H100 SSH workflow and port-forward
+  into `master`; on H100, one node usually means requesting all 8 GPUs.
+- Default persistent work and dataset paths to AMLFS-07 unless the user names a
+  different mount: use `/mnt/amlfs-07/shared/linke` for `HOME`, worktrees, and
+  run outputs, and `/mnt/amlfs-07/shared/datasets/...` for shared datasets.
 - SSH usually lands as `root`, for example
-  `ssh -p 2222 root@localhost -o StrictHostKeyChecking=no`.
+  `ssh -p "$OSMO_SSH_PORT" root@localhost -o StrictHostKeyChecking=no`.
 - After entering an Osmo SSH shell, normalize the environment before starting
   Codex or tmux work: run `deactivate`, then
   `export HOME=/mnt/amlfs-07/shared/linke`, then `. ~/.bashrc`, then `cd ~`.
@@ -80,9 +104,9 @@ guidance:
   wrapper or manually run the same `deactivate`, `export HOME=...`, `. ~/.bashrc`,
   and `cd ~` sequence in the pane.
 - When launching background work inside Osmo SSH, prefer this pattern:
-  `ssh -p 2222 root@localhost 'tmux new-session -d -s <name> -c <cwd>'`, then
-  `ssh -p 2222 root@localhost 'tmux send-keys -t <name> "<setup or run command>" Enter'`,
-  then verify with `ssh -p 2222 root@localhost 'tmux capture-pane -p -t <name> -S -80'`.
+  `ssh -p "$OSMO_SSH_PORT" root@localhost 'tmux new-session -d -s <name> -c <cwd>'`, then
+  `ssh -p "$OSMO_SSH_PORT" root@localhost 'tmux send-keys -t <name> "<setup or run command>" Enter'`,
+  then verify with `ssh -p "$OSMO_SSH_PORT" root@localhost 'tmux capture-pane -p -t <name> -S -80'`.
 - `ping google.com` may fail because ICMP can be blocked; use HTTPS checks such
   as `curl -I -L https://google.com` to verify outbound network instead.
 

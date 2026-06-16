@@ -31,6 +31,12 @@ _MODEL_ALIASES = {
     "gpt5.5": "gpt-5.5",
     "gpt-55": "gpt-5.5",
 }
+_SERVICE_TIER_ALIASES = {
+    "default": "default",
+    "normal": "default",
+    "standard": "default",
+    "fast": "fast",
+}
 _MOUNT_ROOT_ALIASES = {
     "mnt": Path("/mnt"),
     "mtn": Path("/mnt"),
@@ -476,6 +482,27 @@ class ThreadCoordinator:
                 await self._run_remaining_after_command(thread_ts, channel_id, remaining, say, client, user_id)
             return
 
+        fast_match = re.match(r"^(?:/fast|fast|mode\s+fast)\b\s*(.*)?$", text.strip(), re.IGNORECASE | re.DOTALL)
+        if fast_match:
+            remaining = (fast_match.group(1) or "").strip()
+            await self._handle_service_tier(thread_ts, channel_id, "fast", say, user_id=user_id)
+            if remaining:
+                await self._run_remaining_after_command(thread_ts, channel_id, remaining, say, client, user_id)
+            return
+
+        service_tier_match = re.match(
+            r"^(?:service[-_\s]?tier|tier)\s+(\S+)\s*(.*)?$",
+            text.strip(),
+            re.IGNORECASE | re.DOTALL,
+        )
+        if service_tier_match:
+            service_tier = service_tier_match.group(1).strip()
+            remaining = (service_tier_match.group(2) or "").strip()
+            await self._handle_service_tier(thread_ts, channel_id, service_tier, say, user_id=user_id)
+            if remaining:
+                await self._run_remaining_after_command(thread_ts, channel_id, remaining, say, client, user_id)
+            return
+
         # Handle verbosity command: "verbose", "text-delta", "non-verbose", optionally followed by a prompt.
         verbosity_match = re.match(
             r"^(?:(?:verbosity|mode)\s+)?(verbose|text[-_\s]?delta(?:[-_\s]?only)?|delta|non[-\s]?verbose|quiet|silent)\s*(.*)?$",
@@ -806,6 +833,41 @@ class ThreadCoordinator:
 
         await say(text=f":zap: Effort set to `{effort_val}`", thread_ts=thread_ts)
         logger.info("coordinator.effort_set", thread_ts=thread_ts, effort=effort_val)
+
+    async def _handle_service_tier(
+        self, thread_ts: str, channel_id: str, service_tier: str, say: Any, user_id: str = ""
+    ) -> None:
+        """Set the Codex service tier for a thread."""
+        tier = _SERVICE_TIER_ALIASES.get(service_tier.strip().lower())
+        if tier is None:
+            available = ", ".join(sorted(_SERVICE_TIER_ALIASES))
+            await say(text=f":x: Invalid service tier. Use one of: {available}", thread_ts=thread_ts)
+            return
+
+        async with self.db._connect() as db:
+            thread = await queries.get_thread(db, thread_ts)
+            if thread is None:
+                backend_type = self._default_backend_type()
+                session_id = await self._create_session(backend_type)
+                thread = Thread(
+                    thread_ts=thread_ts,
+                    channel_id=channel_id,
+                    session_id=session_id,
+                    backend_type=backend_type,
+                    service_tier=tier,
+                    user_id=user_id,
+                )
+                await queries.upsert_thread(db, thread)
+            else:
+                self._register_thread_backend(thread)
+                thread.service_tier = tier
+                await queries.upsert_thread(db, thread)
+
+        if hasattr(self.backend, "set_session_service_tier"):
+            await self.backend.set_session_service_tier(thread.session_id, tier)
+
+        await say(text=f":zap: Codex service tier set to `{tier}`", thread_ts=thread_ts)
+        logger.info("coordinator.service_tier_set", thread_ts=thread_ts, service_tier=tier)
 
     def _normalize_response_mode(self, mode: str) -> str:
         key = mode.strip().lower().replace("_", "-").replace(" ", "-")
@@ -1401,6 +1463,8 @@ class ThreadCoordinator:
                 await self.backend.set_session_model(thread.session_id, model)
         if thread.effort and hasattr(self.backend, "set_session_effort"):
             await self.backend.set_session_effort(thread.session_id, thread.effort)
+        if thread.service_tier and hasattr(self.backend, "set_session_service_tier"):
+            await self.backend.set_session_service_tier(thread.session_id, thread.service_tier)
         if thread.cc_session_id and hasattr(self.backend, "set_cc_session_id"):
             self.backend.set_cc_session_id(thread.session_id, thread.cc_session_id)
 

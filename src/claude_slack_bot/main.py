@@ -41,6 +41,7 @@ def _create_backend(settings: Settings) -> AgentBackend:
             model=settings.codex_model,
             cwd=settings.cwd or None,
             effort=settings.effort or None,
+            service_tier=settings.codex_service_tier or None,
             codex_bin=settings.codex_bin,
             bypass_approvals_and_sandbox=settings.codex_bypass_approvals_and_sandbox,
         ),

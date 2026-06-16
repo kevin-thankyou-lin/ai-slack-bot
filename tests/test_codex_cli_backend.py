@@ -108,13 +108,14 @@ def test_build_prompt_caps_history() -> None:
 
 
 def test_build_args_uses_codex_options() -> None:
-    backend = CodexCliBackend(model="gpt-test", cwd="/tmp/project", effort="medium")
+    backend = CodexCliBackend(model="gpt-test", cwd="/tmp/project", effort="medium", service_tier="fast")
     args = backend._build_args("s1", "prompt")
     assert args[:3] == ["exec", "--json", "--skip-git-repo-check"]
     assert "--dangerously-bypass-approvals-and-sandbox" in args
     assert args[args.index("-C") + 1] == "/tmp/project"
     assert args[args.index("-m") + 1] == "gpt-test"
     assert 'model_reasoning_effort="medium"' in args
+    assert 'service_tier="fast"' in args
     assert args[-1] == "prompt"
 
 
@@ -122,3 +123,7 @@ def test_build_args_defaults_to_xhigh_effort() -> None:
     backend = CodexCliBackend(model="gpt-test")
     args = backend._build_args("s1", "prompt")
     assert 'model_reasoning_effort="xhigh"' in args
+
+
+def test_default_idle_timeout_is_7_days() -> None:
+    assert CodexCliBackend.IDLE_TIMEOUT == 7 * 24 * 60 * 60

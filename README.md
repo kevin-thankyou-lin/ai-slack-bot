@@ -124,6 +124,7 @@ Optional settings:
 | `DEFAULT_MODEL` | `claude-opus-4-7` | Claude model for `claude-code` / Messages |
 | `CODEX_MODEL` | `gpt-5.5` | Codex model for `codex` threads |
 | `EFFORT` | `xhigh` | Reasoning effort: `low`, `medium`, `high`, `xhigh`, or `max` |
+| `CODEX_SERVICE_TIER` | unset | Optional Codex service tier override, e.g. `fast` |
 | `CODEX_BIN` | `codex` | Codex CLI executable |
 | `CODEX_BYPASS_APPROVALS_AND_SANDBOX` | `true` | Run Codex non-interactively without CLI approval prompts |
 | `DB_PATH` | `data/claude_slack_bot.db` | SQLite database path |
@@ -153,7 +154,7 @@ backend claude
 claude: continue with the existing Claude path
 ```
 
-`model <name>`, `effort <level>`, and `cd <path>` continue to apply to the current thread. `cd` accepts full paths, folder names under `PROJECTS_DIR`, and slashless mount shorthand such as `cd mnt amlfs-07 shared linke`.
+`model <name>`, `effort <level>`, `fast` / `/fast` / `mode fast`, `service-tier <default|fast>`, and `cd <path>` continue to apply to the current thread. Fast mode sets Codex `service_tier` to `fast`. `cd` accepts full paths, folder names under `PROJECTS_DIR`, and slashless mount shorthand such as `cd mnt amlfs-07 shared linke`.
 
 ### Permission prompts
 

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS threads (
     cc_session_id   TEXT NOT NULL DEFAULT '',
     model           TEXT NOT NULL DEFAULT '',
     effort          TEXT NOT NULL DEFAULT '',
+    service_tier    TEXT NOT NULL DEFAULT '',
     verbose         INTEGER NOT NULL DEFAULT 0,
     text_delta_only INTEGER NOT NULL DEFAULT 1,
     status          TEXT NOT NULL DEFAULT 'active',
@@ -74,6 +75,7 @@ class Database:
                 ("cc_session_id", "TEXT", "''"),
                 ("model", "TEXT", "''"),
                 ("effort", "TEXT", "''"),
+                ("service_tier", "TEXT", "''"),
                 ("verbose", "INTEGER", "0"),
                 ("text_delta_only", "INTEGER", "1"),
             ]:
