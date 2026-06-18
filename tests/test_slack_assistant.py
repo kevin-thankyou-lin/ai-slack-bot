@@ -4,6 +4,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from slack_bolt.async_app import AsyncApp
 
 from claude_slack_bot.core.coordinator import ThreadCoordinator
 from claude_slack_bot.db import queries
@@ -13,6 +14,7 @@ from claude_slack_bot.slack.assistant import (
     AssistantSay,
     _assistant_text_from_payload,
     _is_known_assistant_thread,
+    register_assistant,
 )
 
 
@@ -32,6 +34,12 @@ class _FakeBackend:
 
     def register_session(self, session_id: str, backend_type: str) -> None:
         self.registered.append((session_id, backend_type))
+
+
+def test_register_assistant_accepts_custom_matcher() -> None:
+    app = AsyncApp(token="xoxb-test")
+
+    register_assistant(app, object())  # type: ignore[arg-type]
 
 
 @pytest.mark.asyncio

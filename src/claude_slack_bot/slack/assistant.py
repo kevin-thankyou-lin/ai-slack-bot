@@ -136,7 +136,7 @@ def register_assistant(app: AsyncApp, coordinator: ThreadCoordinator) -> None:
         return await _is_known_assistant_thread(payload, coordinator)
 
     @assistant.user_message(
-        matchers=AsyncCustomListenerMatcher(app_name=assistant.app_name, func=user_message_matcher)
+        matchers=[AsyncCustomListenerMatcher(app_name=assistant.app_name, func=user_message_matcher)]
     )
     async def handle_assistant_user_message(
         payload: dict[str, Any],
