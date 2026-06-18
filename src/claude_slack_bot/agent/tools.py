@@ -9,7 +9,7 @@ CUSTOM_TOOLS: list[dict[str, Any]] = [
         "description": (
             "Generate an image by writing and executing a Python script. "
             "The script should save the image to /tmp/ with a descriptive filename. "
-            "The image will be automatically uploaded to the Slack thread. "
+            "The image will be automatically uploaded to the current Slack conversation. "
             "Use matplotlib, PIL, or similar libraries."
         ),
         "input_schema": {
@@ -37,7 +37,7 @@ CUSTOM_TOOLS: list[dict[str, Any]] = [
         "description": (
             "Create a short MP4 video by writing and executing a Python script. "
             "The script should save the video to /tmp/ as an MP4 file. "
-            "The video will be automatically uploaded to the Slack thread. "
+            "The video will be automatically uploaded to the current Slack conversation. "
             "Use matplotlib.animation, moviepy, or ffmpeg."
         ),
         "input_schema": {
@@ -63,7 +63,7 @@ CUSTOM_TOOLS: list[dict[str, Any]] = [
         "type": "custom",
         "name": "post_summary",
         "description": (
-            "Post a formatted summary of the conversation so far to the Slack thread. "
+            "Post a formatted summary of the conversation so far to the current Slack conversation. "
             "Use this after completing a significant milestone or when the user asks for status."
         ),
         "input_schema": {

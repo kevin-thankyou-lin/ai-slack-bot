@@ -278,7 +278,7 @@ class CodexCliBackend:
         prior = history[:-1][-self.HISTORY_LIMIT :]
         transcript = self._format_history(prior)
         if transcript:
-            return f"{SYSTEM_PROMPT}\n\nPrior Slack thread context:\n{transcript}\n\nCurrent user message:\n{content}"
+            return f"{SYSTEM_PROMPT}\n\nPrior Slack conversation context:\n{transcript}\n\nCurrent user message:\n{content}"
         return f"{SYSTEM_PROMPT}\n\nCurrent user message:\n{content}"
 
     def _format_history(self, prior: list[tuple[str, str]]) -> str:
