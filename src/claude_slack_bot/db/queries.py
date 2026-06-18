@@ -36,8 +36,8 @@ async def get_thread(db: aiosqlite.Connection, thread_ts: str) -> Thread | None:
 
 async def upsert_thread(db: aiosqlite.Connection, thread: Thread) -> None:
     await db.execute(
-        """INSERT INTO threads (thread_ts, channel_id, session_id, backend_type, auto_approve, cwd, cc_session_id, model, effort, service_tier, verbose, text_delta_only, status, user_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO threads (thread_ts, channel_id, session_id, backend_type, surface, auto_approve, cwd, cc_session_id, model, effort, service_tier, verbose, text_delta_only, status, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(thread_ts) DO UPDATE SET
                channel_id = excluded.channel_id,
                session_id = excluded.session_id,
