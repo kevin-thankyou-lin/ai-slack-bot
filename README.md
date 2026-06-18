@@ -148,7 +148,7 @@ Optional settings:
 | `DEFAULT_MODEL` | `claude-opus-4-7` | Claude model for `claude-code` / Messages |
 | `CODEX_MODEL` | `gpt-5.5` | Codex model for `codex` threads |
 | `EFFORT` | `xhigh` | Reasoning effort: `low`, `medium`, `high`, `xhigh`, or `max` |
-| `CODEX_SERVICE_TIER` | unset | Optional Codex service tier override, e.g. `fast` |
+| `CODEX_SERVICE_TIER` | `fast` | Codex service tier; set empty to disable fast mode |
 | `CODEX_BIN` | `codex` | Codex CLI executable |
 | `CODEX_BYPASS_APPROVALS_AND_SANDBOX` | `true` | Run Codex non-interactively without CLI approval prompts |
 | `ENABLE_SLACK_ASSISTANT` | `true` | Register Slack Assistant chat listeners |
