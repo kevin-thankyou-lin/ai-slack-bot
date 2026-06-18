@@ -35,21 +35,26 @@ The default configuration enables Slack Assistant chats. To keep only the legacy
 
 ## Slack App Setup
 
-### 1. Create a Slack App
+### 1. Option A: Create a Slack App from the Manifest
 
-**Option A — Import manifest (recommended):**
+Use this recommended path unless you specifically need to configure the Slack app by hand. The manifest pre-configures the app settings that are otherwise covered in the manual sections below.
+
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**
 2. Choose **From an app manifest**
 3. Select your workspace
 4. Paste the contents of `manifest.json` from this repo
 5. Click **Create** — all scopes, events, and settings are pre-configured
-6. Skip to step 8 (Install the App)
+6. Continue with step 2 to generate `SLACK_APP_TOKEN`, then skip directly to step 6 (Install the App) to get `SLACK_BOT_TOKEN`
 
-**Option B — Manual setup:**
+### Option B: Manual App Setup
+
+Use this fallback only if you cannot import the manifest or want to review every Slack setting yourself.
+
 1. Go to [api.slack.com/apps](https://api.slack.com/apps) and click **Create New App**
 2. Choose **From scratch**
 3. Name it (e.g., "Claude Bot") and select your workspace
 4. Click **Create App**
+5. Continue through steps 2-5 below to configure Socket Mode, scopes, events, and interactivity manually before installing the app in step 6
 
 ### 2. Enable Socket Mode
 
@@ -142,7 +147,8 @@ Optional settings:
 | `DEFAULT_BACKEND` | `codex` | `codex`, `claude-code`, `messages` (API), or `managed` (beta) |
 | `DEFAULT_MODEL` | `claude-opus-4-7` | Claude model for `claude-code` / Messages |
 | `CODEX_MODEL` | `gpt-5.5` | Codex model for `codex` threads |
-| `EFFORT` | `xhigh` | Reasoning effort: `low`, `medium`, `high`, or `xhigh` |
+| `EFFORT` | `xhigh` | Reasoning effort: `low`, `medium`, `high`, `xhigh`, or `max` |
+| `CODEX_SERVICE_TIER` | unset | Optional Codex service tier override, e.g. `fast` |
 | `CODEX_BIN` | `codex` | Codex CLI executable |
 | `CODEX_BYPASS_APPROVALS_AND_SANDBOX` | `true` | Run Codex non-interactively without CLI approval prompts |
 | `ENABLE_SLACK_ASSISTANT` | `true` | Register Slack Assistant chat listeners |
@@ -266,7 +272,7 @@ backend claude-code
 claude: continue with the existing Claude path
 ```
 
-`model <name>`, `effort <level>`, and `cd <path>` continue to apply to the current thread. `cd` accepts full paths, folder names under `PROJECTS_DIR`, and slashless mount shorthand such as `cd mnt amlfs-07 shared linke`.
+`model <name>`, `effort <level>`, `fast` / `/fast` / `mode fast`, `service-tier <default|fast>`, and `cd <path>` continue to apply to the current thread. Fast mode sets Codex `service_tier` to `fast`. `cd` accepts full paths, folder names under `PROJECTS_DIR`, and slashless mount shorthand such as `cd mnt amlfs-07 shared linke`.
 
 ### Permission prompts
 
@@ -284,16 +290,6 @@ Ask the agent to create visuals:
 ```
 
 The agent writes and executes a matplotlib script, then uploads the image to the conversation.
-
-### Managed Agents (optional)
-
-For stateful sessions with built-in tools (bash, text editor, web search, computer use):
-
-```bash
-python -m scripts.create_agent
-# Copy the output AGENT_ID and AGENT_VERSION to your .env
-# Set DEFAULT_BACKEND=managed
-```
 
 ## Development
 

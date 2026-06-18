@@ -28,7 +28,7 @@ class CodexCliBackend:
     HISTORY_TRANSCRIPT_CHAR_LIMIT = 12000
     STDOUT_READ_CHUNK_SIZE = 65536
     STDOUT_LINE_BYTE_LIMIT = 4 * 1024 * 1024
-    IDLE_TIMEOUT = 43200
+    IDLE_TIMEOUT = 7 * 24 * 60 * 60
     _BENIGN_STDERR_PATTERNS = (
         "Reading additional input from stdin",
         "failed to record rollout items",
@@ -40,18 +40,21 @@ class CodexCliBackend:
         model: str = "gpt-5.5",
         cwd: str | None = None,
         effort: str | None = "xhigh",
+        service_tier: str | None = None,
         codex_bin: str = "codex",
         bypass_approvals_and_sandbox: bool = True,
     ) -> None:
         self.model = model
         self.default_cwd = cwd
         self.effort = effort
+        self.service_tier = service_tier
         self.codex_bin = codex_bin
         self.bypass_approvals_and_sandbox = bypass_approvals_and_sandbox
 
         self._session_cwd: dict[str, str] = {}
         self._session_model: dict[str, str] = {}
         self._session_effort: dict[str, str] = {}
+        self._session_service_tier: dict[str, str] = {}
         self._history: dict[str, list[tuple[str, str]]] = {}
         self._codex_thread_ids: dict[str, str] = {}
         self._processes: dict[str, asyncio.subprocess.Process] = {}
@@ -73,6 +76,9 @@ class CodexCliBackend:
 
     async def set_session_effort(self, session_id: str, effort: str) -> None:
         self._session_effort[session_id] = effort
+
+    async def set_session_service_tier(self, session_id: str, service_tier: str) -> None:
+        self._session_service_tier[session_id] = service_tier
 
     def set_auto_approve(self, session_id: str, *, enabled: bool) -> None:
         # Codex CLI approval behavior is configured per process invocation.
@@ -214,6 +220,10 @@ class CodexCliBackend:
         effort = self._session_effort.get(session_id) or self.effort
         if effort:
             args.extend(["-c", f'model_reasoning_effort="{effort}"'])
+
+        service_tier = self._session_service_tier.get(session_id) or self.service_tier
+        if service_tier:
+            args.extend(["-c", f'service_tier="{service_tier}"'])
 
         args.append(prompt)
         return args

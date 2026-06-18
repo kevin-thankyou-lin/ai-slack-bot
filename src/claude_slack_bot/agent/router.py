@@ -78,6 +78,11 @@ class BackendRouter:
         if hasattr(backend, "set_session_effort"):
             await backend.set_session_effort(session_id, effort)
 
+    async def set_session_service_tier(self, session_id: str, service_tier: str) -> None:
+        backend = self._backend_for_session(session_id)
+        if hasattr(backend, "set_session_service_tier"):
+            await backend.set_session_service_tier(session_id, service_tier)
+
     def set_auto_approve(self, session_id: str, *, enabled: bool) -> None:
         backend = self._backend_for_session(session_id)
         if hasattr(backend, "set_auto_approve"):

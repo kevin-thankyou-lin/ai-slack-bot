@@ -23,6 +23,10 @@ def _make_result_msg(result: str | None = None, session_id: str = "cc-test-123")
     return msg
 
 
+def test_default_idle_timeout_is_7_days() -> None:
+    assert ClaudeCodeBackend.IDLE_TIMEOUT == 7 * 24 * 60 * 60
+
+
 @pytest.mark.asyncio
 async def test_create_session() -> None:
     backend = ClaudeCodeBackend()

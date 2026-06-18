@@ -22,6 +22,7 @@ async def test_thread_crud(db: Database) -> None:
     assert result is not None
     assert result.session_id == "sess-abc"
     assert result.auto_approve is False
+    assert result.service_tier == ""
 
 
 @pytest.mark.asyncio
