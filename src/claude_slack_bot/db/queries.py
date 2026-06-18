@@ -20,6 +20,7 @@ async def get_thread(db: aiosqlite.Connection, thread_ts: str) -> Thread | None:
         channel_id=row["channel_id"],
         session_id=row["session_id"],
         backend_type=row["backend_type"],
+        surface=row["surface"] if "surface" in row.keys() else "slack_thread",
         auto_approve=bool(row["auto_approve"]),
         cwd=row["cwd"] if "cwd" in row.keys() else "",
         cc_session_id=row["cc_session_id"] if "cc_session_id" in row.keys() else "",
@@ -38,8 +39,10 @@ async def upsert_thread(db: aiosqlite.Connection, thread: Thread) -> None:
         """INSERT INTO threads (thread_ts, channel_id, session_id, backend_type, auto_approve, cwd, cc_session_id, model, effort, service_tier, verbose, text_delta_only, status, user_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(thread_ts) DO UPDATE SET
+               channel_id = excluded.channel_id,
                session_id = excluded.session_id,
                backend_type = excluded.backend_type,
+               surface = excluded.surface,
                auto_approve = excluded.auto_approve,
                cwd = excluded.cwd,
                cc_session_id = excluded.cc_session_id,
@@ -56,6 +59,7 @@ async def upsert_thread(db: aiosqlite.Connection, thread: Thread) -> None:
             thread.channel_id,
             thread.session_id,
             thread.backend_type,
+            thread.surface,
             int(thread.auto_approve),
             thread.cwd,
             thread.cc_session_id,

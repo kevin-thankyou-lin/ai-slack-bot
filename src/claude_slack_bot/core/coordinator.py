@@ -5,9 +5,9 @@ import json
 import re
 import shlex
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 import structlog
 
@@ -383,6 +383,74 @@ class ThreadCoordinator:
         self._stream_buffers: dict[str, _StreamBuffer] = {}
         self._polls: dict[str, asyncio.Task[None]] = {}  # thread_ts -> poll task
         self._queues: dict[str, asyncio.Queue[tuple[str, str, str, Any, Any, str]]] = {}  # thread_ts -> message queue
+
+    async def mark_assistant_thread(self, thread_ts: str, channel_id: str, user_id: str = "") -> Thread:
+        """Ensure an Assistant thread has a persisted conversation record."""
+        async with self.db._connect() as db:
+            thread = await queries.get_thread(db, thread_ts)
+
+        if thread is None:
+            backend_type = self._default_backend_type()
+            session_id = await self._create_session(backend_type)
+            thread = Thread(
+                thread_ts=thread_ts,
+                channel_id=channel_id,
+                session_id=session_id,
+                backend_type=backend_type,
+                surface="slack_assistant",
+                user_id=user_id,
+            )
+        else:
+            self._register_thread_backend(thread)
+            thread.channel_id = channel_id or thread.channel_id
+            thread.surface = "slack_assistant"
+            if user_id and not thread.user_id:
+                thread.user_id = user_id
+
+        async with self.db._connect() as db:
+            await queries.upsert_thread(db, thread)
+        return thread
+
+    @staticmethod
+    def _is_assistant_surface(thread: Thread | None) -> bool:
+        return thread is not None and thread.surface == "slack_assistant"
+
+    @staticmethod
+    def _assistant_status_updater(say: Any) -> Callable[..., Awaitable[Any]] | None:
+        set_status = getattr(say, "set_status", None)
+        return cast("Callable[..., Awaitable[Any]]", set_status) if callable(set_status) else None
+
+    @staticmethod
+    def _assistant_title_setter(say: Any) -> Callable[..., Awaitable[Any]] | None:
+        set_title = getattr(say, "set_title", None)
+        return cast("Callable[..., Awaitable[Any]]", set_title) if callable(set_title) else None
+
+    async def _set_assistant_status(self, say: Any, status: str, **kwargs: Any) -> None:
+        set_status = self._assistant_status_updater(say)
+        if set_status is None:
+            return
+        try:
+            await set_status(status, **kwargs)
+        except Exception:
+            logger.warning("coordinator.assistant_status_failed", status=status)
+
+    async def _set_assistant_title(self, say: Any, title: str) -> None:
+        set_title = self._assistant_title_setter(say)
+        if set_title is None:
+            return
+        try:
+            await set_title(title)
+        except Exception:
+            logger.warning("coordinator.assistant_title_failed", title=title[:80])
+
+    @staticmethod
+    def _title_from_user_text(text: str, *, max_len: int = 80) -> str:
+        title = " ".join(text.split())
+        if not title:
+            return "New agent conversation"
+        if len(title) <= max_len:
+            return title
+        return title[: max_len - 3].rstrip() + "..."
 
     async def restore_polls(self, slack_client: Any) -> None:
         """Re-register polls that were active before a restart."""
@@ -804,7 +872,7 @@ class ThreadCoordinator:
         self, thread_ts: str, channel_id: str, effort_val: str, say: Any, user_id: str = ""
     ) -> None:
         """Set the effort level for a thread."""
-        valid = ("low", "medium", "high", "xhigh", "max")
+        valid = ("low", "medium", "high", "xhigh")
         if effort_val not in valid:
             await say(text=f":x: Invalid effort. Use one of: {', '.join(valid)}", thread_ts=thread_ts)
             return
@@ -1590,6 +1658,7 @@ class ThreadCoordinator:
         try:
             async with self.db._connect() as db:
                 thread = await queries.get_thread(db, thread_ts)
+                message_count = await queries.get_message_count(db, thread_ts) if thread is not None else 0
 
             if thread is None:
                 backend_type = self._default_backend_type()
@@ -1601,6 +1670,7 @@ class ThreadCoordinator:
                     backend_type=backend_type,
                     user_id=user_id,
                 )
+                message_count = 0
                 async with self.db._connect() as db:
                     await queries.upsert_thread(db, thread)
                     await queries.add_message(db, thread_ts, "user", text)
@@ -1621,8 +1691,21 @@ class ThreadCoordinator:
             await self._sync_backend_state(thread)
 
             message = text
+            is_assistant = self._is_assistant_surface(thread)
+            if is_assistant:
+                if message_count == 0:
+                    await self._set_assistant_title(say, self._title_from_user_text(text))
+                await self._set_assistant_status(
+                    say,
+                    "is working on your request...",
+                    loading_messages=[
+                        "Reading the request",
+                        "Checking the workspace",
+                        "Preparing a response",
+                    ],
+                )
 
-            if thread.verbose:
+            if thread.verbose and not is_assistant:
                 thinking_result = await say(text=":brain: Thinking...", thread_ts=thread_ts)
                 thinking_ts = thinking_result.get("ts") if isinstance(thinking_result, dict) else None
                 thinking_channel = thinking_result.get("channel") if isinstance(thinking_result, dict) else None
@@ -1709,6 +1792,7 @@ class ThreadCoordinator:
 
         except Exception:
             logger.exception("coordinator.process_error", thread_ts=thread_ts)
+            await self._set_assistant_status(say, "")
             mention = f"<@{user_id}> " if user_id else ""
             await say(
                 text=f"{mention}:warning: Something went wrong processing your message. Please try again.",
@@ -1731,6 +1815,12 @@ class ThreadCoordinator:
             touch()
             # Update the thinking message to show what tool Claude is using
             buf = self._stream_buffers.get(thread_ts)
+            if buf and self._assistant_status_updater(say):
+                buf._tool_count = getattr(buf, "_tool_count", 0) + 1
+                await self._set_assistant_status(
+                    say,
+                    f"is using {event.tool_name}... (step {buf._tool_count})",
+                )
             if buf and buf._thinking_ts and buf._thinking_channel:
                 tool_emoji = {
                     "Bash": ":terminal:",

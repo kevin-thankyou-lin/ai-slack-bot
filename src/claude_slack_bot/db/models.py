@@ -12,6 +12,7 @@ class Thread:
     channel_id: str
     session_id: str
     backend_type: str = "messages"
+    surface: str = "slack_thread"
     auto_approve: bool = False
     cwd: str = ""
     cc_session_id: str = ""

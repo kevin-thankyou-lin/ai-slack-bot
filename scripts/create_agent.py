@@ -31,13 +31,13 @@ def main() -> None:
             ],
         )
 
-        print(f"\nAgent created successfully!")
+        print("\nAgent created successfully!")
         print(f"  Agent ID:      {agent.id}")
         print(f"  Agent Version: {agent.version}")
-        print(f"\nAdd these to your .env file:")
+        print("\nAdd these to your .env file:")
         print(f"  AGENT_ID={agent.id}")
         print(f"  AGENT_VERSION={agent.version}")
-        print(f"  DEFAULT_BACKEND=managed")
+        print("  DEFAULT_BACKEND=managed")
 
     except anthropic.APIError as e:
         print(f"Error creating agent: {e}")
