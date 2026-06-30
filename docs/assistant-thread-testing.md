@@ -97,7 +97,7 @@ cd claude-slack-bot-assistant-threads
 ```
 
 ```text
-model gpt-5.5
+model gpt-5.6-sol
 ```
 
 ```text

@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     agent_id: str = ""
     agent_version: int = 1
     default_model: str = "claude-opus-4-7"  # Default Claude model
-    codex_model: str = "gpt-5.5"  # Default Codex model
-    effort: str = "xhigh"  # Reasoning effort: low, medium, high, xhigh, max
+    codex_model: str = "gpt-5.6-sol"  # Default Codex model
+    effort: str = "high"  # Reasoning effort: low, medium, high, xhigh, max
     codex_service_tier: str = "fast"  # Codex service tier: "fast" (default) or "" to disable
 
     # Database

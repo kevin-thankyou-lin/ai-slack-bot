@@ -119,10 +119,10 @@ def test_build_args_uses_codex_options() -> None:
     assert args[-1] == "prompt"
 
 
-def test_build_args_defaults_to_xhigh_effort() -> None:
+def test_build_args_defaults_to_high_effort() -> None:
     backend = CodexCliBackend(model="gpt-test")
     args = backend._build_args("s1", "prompt")
-    assert 'model_reasoning_effort="xhigh"' in args
+    assert 'model_reasoning_effort="high"' in args
 
 
 def test_default_idle_timeout_is_7_days() -> None:
